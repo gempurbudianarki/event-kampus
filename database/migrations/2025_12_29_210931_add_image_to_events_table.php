@@ -9,16 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('events', function (Blueprint $table) {
-            // Kita tambah kolom price (Harga)
-            // Default 0 artinya kalau gak diisi dianggap Gratis
-            $table->decimal('price', 12, 0)->default(0)->after('quota');
+            // Tambah kolom image setelah description
+            // Kita bikin nullable (boleh kosong) jaga-jaga biar aman
+            $table->string('image')->nullable()->after('description');
         });
     }
 
     public function down(): void
     {
         Schema::table('events', function (Blueprint $table) {
-            $table->dropColumn('price');
+            $table->dropColumn('image');
         });
     }
 };

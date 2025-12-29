@@ -9,200 +9,210 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-
-// IMPORT BARU (WAJIB ADA BIAR LOGIC JALAN)
+use Filament\Forms\Components\Group;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Grid;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
-
-// Import Layout Grid
-use Filament\Tables\Columns\Layout\Stack;
-use Filament\Tables\Columns\Layout\Split;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Tables\Columns\TextColumn;
+use Illuminate\Support\Str;
 
 class EventResource extends Resource
 {
     protected static ?string $model = Event::class;
-
-    protected static ?string $navigationIcon = 'heroicon-o-calendar';
+    
+    // Icon lebih modern
+    protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
+    
     protected static ?string $navigationLabel = 'Manajemen Event';
+    
+    protected static ?string $navigationGroup = 'Menu Utama';
+
+    // Biar urutan menu paling atas
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Detail Acara')
-                    ->description('Informasi utama mengenai event.')
+                // === KOLOM KIRI (Konten Utama) ===
+                Group::make()
                     ->schema([
-                        Forms\Components\TextInput::make('title')
-                            ->label('Judul Event')
-                            ->required()
-                            ->maxLength(255),
-
-                        Forms\Components\Select::make('status')
-                            ->options([
-                                'draft' => 'Draft (Konsep)',
-                                'published' => 'Published (Tayang)',
-                                'closed' => 'Closed (Selesai)',
-                            ])
-                            ->required()
-                            ->default('draft'),
-                            
-                        Forms\Components\DateTimePicker::make('event_date')
-                            ->label('Tanggal & Jam')
-                            ->required(),
-
-                        Forms\Components\TextInput::make('location')
-                            ->label('Lokasi')
-                            ->required()
-                            ->maxLength(255),
-
-                        // --- BAGIAN KUOTA & HARGA PINTAR ---
-                        Forms\Components\Grid::make(2)
+                        Section::make('Konten Event')
+                            ->description('Isi detail utama acara di sini.')
                             ->schema([
-                                Forms\Components\TextInput::make('quota')
-                                    ->label('Kuota Peserta')
-                                    ->numeric()
+                                Forms\Components\TextInput::make('title')
+                                    ->label('Judul Acara')
+                                    ->placeholder('Contoh: Seminar Teknologi AI 2025')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->live(onBlur: true), // Live update kalau mau tambah slug nanti
+
+                                Forms\Components\TextInput::make('location')
+                                    ->label('Lokasi / Tempat')
+                                    ->placeholder('Contoh: Aula Gedung B, Kampus UBBG')
+                                    ->required()
+                                    ->prefixIcon('heroicon-m-map-pin'),
+
+                                Forms\Components\RichEditor::make('description')
+                                    ->label('Deskripsi Lengkap')
+                                    ->toolbarButtons([
+                                        'bold', 'italic', 'underline', 'bulletList', 'orderedList', 'h2', 'h3', 'link',
+                                    ])
+                                    ->required()
+                                    ->columnSpanFull(),
+                            ]),
+
+                        Section::make('Media Promosi')
+                            ->schema([
+                                Forms\Components\FileUpload::make('image')
+                                    ->label('Banner / Poster')
+                                    ->image()
+                                    ->imageEditor() // Fitur crop gambar bawaan Filament
+                                    ->directory('events')
+                                    ->disk('public')
+                                    ->columnSpanFull()
+                                    ->required(),
+                            ]),
+                    ])
+                    ->columnSpan(['lg' => 2]), // Pakai 2/3 layar
+
+                // === KOLOM KANAN (Pengaturan & Meta) ===
+                Group::make()
+                    ->schema([
+                        Section::make('Status & Jadwal')
+                            ->schema([
+                                Forms\Components\Select::make('status')
+                                    ->options([
+                                        'draft' => 'Draft (Disimpan)',
+                                        'published' => 'Published (Tayang)',
+                                        'closed' => 'Closed (Selesai)',
+                                    ])
+                                    ->default('draft')
+                                    ->selectablePlaceholder(false)
+                                    ->native(false)
                                     ->required(),
 
-                                // 1. LOGIC GRATIS vs BAYAR
-                                Forms\Components\Radio::make('is_paid')
-                                    ->label('Jenis Tiket')
-                                    ->boolean()
-                                    ->options([
-                                        0 => 'Gratis',
-                                        1 => 'Berbayar',
-                                    ])
-                                    // Logic: Kalau harga > 0, otomatis kepilih Berbayar saat Edit
-                                    ->formatStateUsing(fn (?Event $record) => $record?->price > 0 ? 1 : 0)
-                                    ->dehydrated(false) // Gak disimpan ke DB (Cuma alat bantu UI)
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, Set $set) {
-                                        if ($state == 0) {
-                                            $set('price', 0); // Kalau Gratis, paksa harga jadi 0
-                                        }
-                                    }),
+                                Forms\Components\DateTimePicker::make('event_date')
+                                    ->label('Waktu Pelaksanaan')
+                                    ->native(false) // Pakai datepicker modern
+                                    ->displayFormat('d M Y, H:i')
+                                    ->required(),
+                            ]),
 
-                                // 2. INPUT HARGA (Hanya muncul kalau Berbayar)
+                        Section::make('Tiket & Kuota')
+                            ->schema([
+                                Forms\Components\TextInput::make('quota')
+                                    ->label('Stok Kuota')
+                                    ->numeric()
+                                    ->default(100)
+                                    ->prefixIcon('heroicon-m-user-group')
+                                    ->required(),
+
+                                Forms\Components\Toggle::make('is_paid')
+                                    ->label('Tiket Berbayar?')
+                                    ->onColor('success')
+                                    ->offColor('gray')
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set, $state) => $state ? null : $set('price', 0)),
+
                                 Forms\Components\TextInput::make('price')
-                                    ->label('Nominal Harga')
+                                    ->label('Harga Tiket')
                                     ->prefix('Rp')
                                     ->numeric()
                                     ->default(0)
-                                    ->live()
-                                    ->hint(fn ($state) => $state ? 'Terbaca: Rp ' . number_format($state, 0, ',', '.') : '') 
-                                    ->visible(fn (Get $get) => $get('is_paid') == 1) // Sembunyi kalau Gratis
-                                    ->required(fn (Get $get) => $get('is_paid') == 1),
+                                    // Muncul hanya jika toggle dinyalakan
+                                    ->visible(fn (Get $get) => $get('is_paid')) 
+                                    ->required(fn (Get $get) => $get('is_paid')),
                             ]),
-
-                    ])->columns(2),
-
-                Forms\Components\Section::make('Media & Deskripsi')
-                    ->schema([
-                        Forms\Components\FileUpload::make('banner')
-                            ->label('Poster Event')
-                            ->image()
-                            ->directory('banners')
-                            ->disk('public')       
-                            ->visibility('public') 
-                            ->required()
-                            ->columnSpanFull(),
-
-                        Forms\Components\Textarea::make('description')
-                            ->label('Deskripsi Lengkap')
-                            ->rows(5)
-                            ->required()
-                            ->columnSpanFull(),
-                    ]),
-            ]);
+                    ])
+                    ->columnSpan(['lg' => 1]), // Pakai 1/3 layar
+            ])
+            ->columns(3); // Total grid 3 kolom
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Stack::make([
-                    // 1. BAGIAN GAMBAR
-                    ImageColumn::make('banner')
-                        ->disk('public')
-                        ->width('100%')
-                        ->height('auto')
-                        ->extraImgAttributes([
-                            'class' => 'w-full rounded-t-xl',
-                        ]),
+                // 1. Gambar Kecil (Preview)
+                Tables\Columns\ImageColumn::make('image')
+                    ->label('Banner')
+                    ->circular() // Biar bulat estetik
+                    ->defaultImageUrl(url('/images/placeholder.png')),
 
-                    // 2. BAGIAN DETAIL INFO
-                    Stack::make([
-                        TextColumn::make('title')
-                            ->weight('bold')
-                            ->size('lg')
-                            ->color('primary')
-                            ->searchable()
-                            ->extraAttributes(['class' => 'mt-2']),
+                // 2. Judul & Lokasi (Stacked)
+                Tables\Columns\TextColumn::make('title')
+                    ->label('Detail Event')
+                    ->description(fn (Event $record): string => Str::limit($record->location, 30))
+                    ->searchable()
+                    ->weight('bold')
+                    ->wrap(),
 
-                        TextColumn::make('description')
-                            ->color('gray')
-                            ->size('sm')
-                            ->lineClamp(2)
-                            ->extraAttributes(['class' => 'mb-2']),
+                // 3. Tanggal (Format Rapi)
+                Tables\Columns\TextColumn::make('event_date')
+                    ->label('Waktu')
+                    ->dateTime('d M Y, H:i')
+                    ->sortable()
+                    ->icon('heroicon-m-calendar'),
 
-                        TextColumn::make('event_date')
-                            ->formatStateUsing(fn ($state) => $state->format('d M Y • H:i') . ' WIB')
-                            ->icon('heroicon-m-calendar')
-                            ->color('gray')
-                            ->size('sm'),
+                // 4. Kuota (Badge)
+                Tables\Columns\TextColumn::make('quota')
+                    ->label('Sisa Kuota')
+                    ->badge()
+                    ->color(fn ($state) => $state > 10 ? 'success' : 'danger')
+                    ->sortable(),
 
-                        TextColumn::make('location')
-                            ->icon('heroicon-m-map-pin')
-                            ->color('gray')
-                            ->limit(30)
-                            ->size('sm'),
+                // 5. Harga
+                Tables\Columns\TextColumn::make('price')
+                    ->label('Harga')
+                    ->money('IDR')
+                    ->color(fn ($state) => $state == 0 ? 'success' : 'warning')
+                    ->formatStateUsing(fn ($state) => $state == 0 ? 'GRATIS' : 'Rp '.number_format($state,0,',','.')),
 
-                        // Tampilan Harga
-                        TextColumn::make('price')
-                            ->formatStateUsing(fn ($state) => $state == 0 ? 'GRATIS' : 'Rp ' . number_format($state, 0, ',', '.'))
-                            ->weight('bold')
-                            ->color('success')
-                            ->size('md')
-                            ->extraAttributes(['class' => 'mt-2']),
-                        
-                        Split::make([
-                            TextColumn::make('status')
-                                ->badge()
-                                ->color(fn (string $state): string => match ($state) {
-                                    'draft' => 'gray',
-                                    'published' => 'success',
-                                    'closed' => 'danger',
-                                }),
-                                
-                            TextColumn::make('quota')
-                                ->prefix('Sisa: ')
-                                ->weight('bold')
-                                ->alignRight(),
-                        ])->extraAttributes(['class' => 'mt-2 pt-2 border-t border-gray-100 dark:border-gray-700']),
-
-                    ])->space(1)->extraAttributes(['class' => 'p-4 bg-white dark:bg-gray-800 rounded-b-xl border-x border-b border-gray-200 dark:border-gray-700 shadow-sm']), 
-                    
-                ])->space(0)
+                // 6. Status (Bisa diedit langsung di tabel)
+                Tables\Columns\SelectColumn::make('status')
+                    ->options([
+                        'draft' => 'Draft',
+                        'published' => 'Tayang',
+                        'closed' => 'Selesai',
+                    ])
+                    ->selectablePlaceholder(false)
+                    ->sortable(),
             ])
-            ->contentGrid([
-                'md' => 2,
-                'xl' => 3,
+            ->defaultSort('created_at', 'desc')
+            ->filters([
+                // Filter Status
+                Tables\Filters\SelectFilter::make('status')
+                    ->options([
+                        'draft' => 'Draft',
+                        'published' => 'Published',
+                        'closed' => 'Closed',
+                    ]),
+                // Filter Berbayar/Gratis
+                Tables\Filters\TernaryFilter::make('is_paid')
+                    ->label('Jenis Tiket')
+                    ->trueLabel('Berbayar')
+                    ->falseLabel('Gratis')
+                    ->queries(
+                        true: fn ($query) => $query->where('price', '>', 0),
+                        false: fn ($query) => $query->where('price', 0),
+                    ),
             ])
             ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\EditAction::make(),
-                    Tables\Actions\DeleteAction::make(),
-                ])
-                ->icon('heroicon-m-ellipsis-vertical')
-                ->tooltip('Menu Aksi'),
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 
     public static function getRelations(): array
     {
         return [
-            //
+            // Nanti kita bisa tambah relasi pendaftar di sini
         ];
     }
 

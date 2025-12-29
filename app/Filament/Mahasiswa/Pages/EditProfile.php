@@ -7,10 +7,10 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Pages\Auth\EditProfile as BaseEditProfile;
+use Illuminate\Support\Facades\Auth;
 
 class EditProfile extends BaseEditProfile
 {
-    // Override form bawaan Filament
     public function form(Form $form): Form
     {
         return $form
@@ -21,10 +21,10 @@ class EditProfile extends BaseEditProfile
                     ->schema([
                         FileUpload::make('avatar_url')
                             ->label('Avatar')
-                            ->avatar() // Tampilan bulat
-                            ->imageEditor() // Fitur crop/rotate
-                            ->directory('avatars') // Folder simpan: storage/app/public/avatars
-                            ->rules(['image', 'max:2048']) // Max 2MB
+                            ->avatar()
+                            ->imageEditor()
+                            ->directory('avatars')
+                            ->rules(['image', 'max:2048'])
                             ->columnSpanFull(),
                     ]),
 
@@ -48,22 +48,26 @@ class EditProfile extends BaseEditProfile
                             ->label('NIM')
                             ->numeric()
                             ->required()
-                            // Saya buat disabled biar NIM gak diganti-ganti sembarangan.
-                            // Kalau mau bisa diedit, hapus baris ->disabled() ini.
-                            ->disabled(), 
+                            // --- SMART LOCK LOGIC ---
+                            // Hanya disable kalau user sudah punya NIM di database.
+                            // Jadi pas pertama kali isi, ini terbuka.
+                            ->disabled(fn () => Auth::user()->nim !== null)
+                            ->hint(fn () => Auth::user()->nim !== null ? 'Hubungi admin jika ingin mengubah NIM.' : 'Pastikan NIM benar, tidak bisa diubah nanti.'),
 
                         TextInput::make('jurusan')
                             ->label('Jurusan')
+                            ->placeholder('Contoh: Teknik Informatika')
                             ->required()
                             ->maxLength(255),
 
                         TextInput::make('prodi')
                             ->label('Program Studi')
+                            ->placeholder('Contoh: S1 Sistem Informasi')
                             ->required()
                             ->maxLength(255),
                             
                         TextInput::make('no_hp')
-                            ->label('Nomor HP / WhatsApp')
+                            ->label('WhatsApp Aktif')
                             ->tel()
                             ->required()
                             ->maxLength(20),
@@ -76,7 +80,7 @@ class EditProfile extends BaseEditProfile
                         $this->getPasswordFormComponent(),
                         $this->getPasswordConfirmationFormComponent(),
                     ])
-                    ->collapsed(), // Di-minimize biar gak menuhin layar
+                    ->collapsed(),
             ]);
     }
 }

@@ -9,20 +9,24 @@ class Event extends Model
 {
     use HasFactory;
 
-    // Kolom yang boleh diisi oleh Admin
     protected $fillable = [
-        'title',
+        'title', // <--- UBAH JADI TITLE (Sebelumnya name)
         'description',
-        'banner',
         'event_date',
         'location',
         'quota',
         'price',
-        'status',
+        'image', // Pastikan kolom ini ada di migrasi, kalau error nanti kita cek
+        'status', // draft/published
     ];
 
-    // Casting biar data tanggal otomatis jadi objek Carbon (gampang diolah)
     protected $casts = [
         'event_date' => 'datetime',
+        'price' => 'integer',
     ];
+
+    public function registrations()
+    {
+        return $this->hasMany(Registration::class);
+    }
 }

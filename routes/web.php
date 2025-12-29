@@ -4,6 +4,8 @@ use App\Http\Controllers\TicketController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Event; 
+use App\Http\Controllers\FrontEventController;
+use App\Http\Controllers\ReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,7 +55,19 @@ Route::get('/register', function () {
 })->name('register');
 
 
+// 1. Route Halaman Detail Event (Public)
+Route::get('/event/{event}', [FrontEventController::class, 'show'])->name('event.show');
+
+// 2. Route Proses Daftar (Harus Login)
+Route::post('/event/{event}/register', [FrontEventController::class, 'register'])
+    ->middleware('auth') // Wajib login
+    ->name('event.register');
+
 // 4. FITUR DOWNLOAD TIKET (Wajib Login)
 Route::get('/ticket/{registration}/download', [TicketController::class, 'download'])
     ->middleware('auth')
     ->name('ticket.download');
+
+    Route::get('/admin/export-registrations', [ReportController::class, 'export'])
+    ->middleware('auth') // Wajib login
+    ->name('export.registrations');
