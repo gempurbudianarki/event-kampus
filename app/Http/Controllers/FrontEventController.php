@@ -10,51 +10,54 @@ use Illuminate\Support\Facades\DB;
 
 class FrontEventController extends Controller
 {
-    // 1. Menampilkan Halaman Detail Event
+    // 1. TAMPILKAN DETAIL EVENT
     public function show(Event $event)
     {
-        return view('events.show', compact('event'));
+        // Cek apakah user sudah login & sudah daftar event ini?
+        $isRegistered = false;
+        if (Auth::check()) {
+            $isRegistered = Registration::where('user_id', Auth::id())
+                ->where('event_id', $event->id)
+                ->exists();
+        }
+
+        return view('event.show', compact('event', 'isRegistered'));
     }
 
-    // 2. Proses Pendaftaran Event
+    // 2. PROSES PENDAFTARAN (KLIK TOMBOL DAFTAR)
     public function register(Event $event)
     {
-        // Cek apakah user sudah login?
-        if (!Auth::check()) {
-            return redirect()->route('login')->with('error', 'Silakan login dulu untuk mendaftar.');
-        }
-
         $user = Auth::user();
 
-        // Cek 1: Apakah event masih buka / kuota ada?
+        // VALIDASI 1: Cek Kuota
         if ($event->quota <= 0) {
-            return back()->with('error', 'Mohon maaf, kuota event ini sudah habis!');
+            return back()->with('error', 'Mohon maaf, kuota tiket sudah habis! 😭');
         }
 
-        // Cek 2: Apakah user SUDAH pernah daftar di event ini?
-        $existingRegistration = Registration::where('user_id', $user->id)
+        // VALIDASI 2: Cek Apakah Sudah Daftar?
+        $existing = Registration::where('user_id', $user->id)
             ->where('event_id', $event->id)
             ->first();
 
-        if ($existingRegistration) {
-            return back()->with('warning', 'Anda sudah terdaftar di event ini sebelumnya.');
+        if ($existing) {
+            return back()->with('warning', 'Kamu sudah terdaftar di event ini sebelumnya.');
         }
 
-        // PROSES SIMPAN DATA (Pakai DB Transaction biar aman)
+        // PROSES SIMPAN (Pakai DB Transaction biar aman)
         DB::transaction(function () use ($event, $user) {
-            // A. Simpan ke tabel registrations
-            $registration = Registration::create([
+            // A. Kurangi Kuota Event
+            $event->decrement('quota');
+
+            // B. Simpan Data Pendaftaran
+            Registration::create([
                 'user_id' => $user->id,
                 'event_id' => $event->id,
-                'status' => 'confirmed', // Atau 'pending' kalau ada pembayaran
-                'ticket_code' => 'TICKET-' . strtoupper(uniqid()), // Generate kode unik
+                'ticket_code' => 'TICKET-' . strtoupper(uniqid()), // Generate tiket unik
+                'status' => 'confirmed', // Langsung aktif (kecuali mau sistem bayar manual)
             ]);
-
-            // B. Kurangi Kuota Event
-            $event->decrement('quota');
         });
 
-        // Redirect ke dashboard atau halaman sukses
-        return redirect()->route('dashboard')->with('success', 'Berhasil mendaftar event! Tiket sudah diterbitkan.');
+        // Sukses -> Lempar ke Dashboard Mahasiswa
+        return redirect()->route('dashboard')->with('success', 'Selamat! Pendaftaran berhasil. Tiket sudah terbit. 🎉');
     }
 }

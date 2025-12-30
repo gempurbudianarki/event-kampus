@@ -11,22 +11,20 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Filament\Tables\Actions\Action;
+use Filament\Forms\Components\FileUpload;
+use Filament\Notifications\Notification;
 
 class RegistrationResource extends Resource
 {
-    // Koneksi ke Model Registration
     protected static ?string $model = Registration::class;
 
-    // Pengaturan Tampilan Menu di Sidebar
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
     protected static ?string $navigationLabel = 'Tiket Saya';
-    protected static ?string $modelLabel = 'Tiket Event';
     protected static ?string $pluralModelLabel = 'Tiket Saya';
     protected static ?int $navigationSort = 1;
 
-    // --- PENTING: FILTER DATA USER ---
-    // Fungsi ini memastikan mahasiswa cuma bisa lihat tiket punya dia sendiri.
-    // Data orang lain otomatis disembunyikan.
+    // Filter: Cuma tampilkan tiket milik user yang login
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->where('user_id', Auth::id());
@@ -36,21 +34,11 @@ class RegistrationResource extends Resource
     {
         return $form
             ->schema([
-                // Field Nama Event (Ambil dari relasi event->title)
-                Forms\Components\TextInput::make('event.title')
-                    ->label('Nama Event')
-                    ->formatStateUsing(fn ($record) => $record->event->title ?? '-')
-                    ->disabled(), // Kita kunci biar gak bisa diedit user
-
-                // Field Status
+                Forms\Components\TextInput::make('ticket_code')
+                    ->label('Kode Tiket')
+                    ->readOnly(),
                 Forms\Components\TextInput::make('status')
-                    ->label('Status Pendaftaran')
-                    ->disabled(),
-                
-                // Field Tanggal Daftar
-                Forms\Components\DateTimePicker::make('created_at')
-                    ->label('Tanggal Daftar')
-                    ->disabled(),
+                    ->readOnly(),
             ]);
     }
 
@@ -58,63 +46,96 @@ class RegistrationResource extends Resource
     {
         return $table
             ->columns([
-                // 1. Kolom Gambar Banner (Sesuai database lo: 'banner')
-                Tables\Columns\ImageColumn::make('event.banner')
+                // 1. Poster Event
+                Tables\Columns\ImageColumn::make('event.image')
                     ->label('Poster')
-                    ->circular(),
+                    ->circular()
+                    ->defaultImageUrl(url('/images/placeholder.png')),
 
-                // 2. Kolom Nama Event (Sesuai database lo: 'title')
+                // 2. Info Event
                 Tables\Columns\TextColumn::make('event.title')
-                    ->label('Nama Acara')
-                    ->description(fn (Registration $record): string => 
-                        'Lokasi: ' . ($record->event->location ?? '-')
-                    )
+                    ->label('Event')
                     ->searchable()
-                    ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->description(fn (Registration $record) => $record->event->event_date->format('d M Y, H:i') . ' WIB')
+                    ->wrap(),
 
-                // 3. Kolom Tanggal Event (Sesuai database lo: 'event_date')
-                Tables\Columns\TextColumn::make('event.event_date')
-                    ->label('Jadwal')
-                    ->dateTime('d M Y, H:i') // Format tanggal Indonesia banget
-                    ->sortable(),
+                // 3. Kode Tiket
+                Tables\Columns\TextColumn::make('ticket_code')
+                    ->label('Kode Tiket')
+                    ->copyable()
+                    ->fontFamily('mono')
+                    ->color('primary'),
 
-                // 4. Kolom Status (Badge Warna-warni)
+                // 4. Status
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'confirmed' => 'success', // Hijau
-                        'pending' => 'warning',   // Kuning
-                        'rejected' => 'danger',   // Merah
+                        'confirmed' => 'success',
+                        'pending' => 'warning',
+                        'rejected' => 'danger',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state)),
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'confirmed' => 'Aktif',
+                        'pending' => 'Menunggu Pembayaran',
+                        'rejected' => 'Ditolak',
+                        default => $state,
+                    }),
             ])
-            ->defaultSort('created_at', 'desc') // Urutkan dari yang paling baru daftar
+            ->defaultSort('created_at', 'desc')
             ->actions([
-                // Tombol 1: Lihat Detail (Modal Pop-up)
-                Tables\Actions\ViewAction::make()
-                    ->label('Detail')
-                    ->modalWidth('md'),
+                // --- ACTION 1: UPLOAD BUKTI BAYAR (Jika Pending) ---
+                Action::make('upload_payment')
+                    ->label('Upload Bukti')
+                    ->icon('heroicon-o-arrow-up-tray')
+                    ->color('warning')
+                    ->button()
+                    ->visible(fn (Registration $record) => $record->status === 'pending')
+                    ->form([
+                        FileUpload::make('payment_proof')
+                            ->label('Bukti Transfer')
+                            ->image()
+                            ->directory('payment-proofs')
+                            ->required()
+                            ->maxSize(2048), // Max 2MB
+                    ])
+                    ->action(function (Registration $record, array $data) {
+                        // Update data bukti bayar
+                        // Pastikan kolom 'payment_proof' ada di database!
+                        $record->update([
+                            'payment_proof' => $data['payment_proof'],
+                        ]);
+                        
+                        Notification::make()
+                            ->title('Bukti Terkirim')
+                            ->body('Admin akan memverifikasi pembayaran kamu.')
+                            ->success()
+                            ->send();
+                    }),
 
-                // Tombol 2: CETAK TIKET (Fitur Premium)
-                Tables\Actions\Action::make('download_ticket')
-                    ->label('Cetak Tiket')
-                    ->icon('heroicon-o-printer')
-                    ->color('primary')
-                    // Logic: Tombol ini cuma muncul kalau statusnya sudah 'confirmed'
-                    ->visible(fn (Registration $record) => $record->status === 'confirmed')
-                    // Logic: Klik tombol -> Buka route download PDF
+                // --- ACTION 2: DOWNLOAD PDF (Jika Confirmed) ---
+                Action::make('download')
+                    ->label('Download PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->button()
                     ->url(fn (Registration $record) => route('ticket.download', $record))
-                    ->openUrlInNewTab(), // Buka di tab baru biar dashboard gak ke-close
+                    ->openUrlInNewTab()
+                    ->visible(fn (Registration $record) => $record->status === 'confirmed'),
             ])
-            ->bulkActions([]); // Matikan fitur hapus massal biar aman
+            ->bulkActions([]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageRegistrations::route('/'),
+            'index' => Pages\ListRegistrations::route('/'),
         ];
     }
 }

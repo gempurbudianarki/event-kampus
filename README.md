@@ -1,113 +1,183 @@
+<div align="center">
 
-# 🏛️ EventKampus Pro - Sistem Manajemen Ekosistem Event Digital
+<!-- Animated Header -->
+<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&size=28&duration=3000&pause=800&color=38B2AC&center=true&vCenter=true&width=900&lines=EventKampus+Pro;Digital+Campus+Event+Ecosystem;Built+with+Laravel+11+%7C+Filament+v3;Modern+%7C+Secure+%7C+Scalable" />
 
-![Banner](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png)
+<br/>
 
-[![Laravel 11](https://img.shields.io/badge/laravel-%23FF2D20.svg?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com)
-[![Filament V3](https://img.shields.io/badge/filament-v3-yellow?style=for-the-badge&logo=laravel&logoColor=white)](https://filamentphp.com)
-[![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![MySQL](https://img.shields.io/badge/mysql-%2300f.svg?style=for-the-badge&logo=mysql&logoColor=white)](https://mysql.com)
+<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" width="100%"/>
 
-**EventKampus Pro** adalah platform *enterprise-grade* untuk manajemen kegiatan mahasiswa. Sistem ini tidak hanya menangani pendaftaran, tapi juga mengelola siklus hidup event secara utuh—mulai dari publikasi, manajemen kuota, validasi admin, hingga penerbitan E-Ticket otomatis berbasis PDF.
+<br/>
 
----
+<!-- Badges -->
+<a href="https://laravel.com">
+  <img src="https://img.shields.io/badge/Laravel-11-FF2D20?style=for-the-badge&logo=laravel&logoColor=white"/>
+</a>
+<a href="https://filamentphp.com">
+  <img src="https://img.shields.io/badge/Filament-v3-FACC15?style=for-the-badge&logo=laravel&logoColor=white"/>
+</a>
+<a href="https://tailwindcss.com">
+  <img src="https://img.shields.io/badge/TailwindCSS-3-38B2AC?style=for-the-badge&logo=tailwindcss&logoColor=white"/>
+</a>
+<a href="https://www.mysql.com">
+  <img src="https://img.shields.io/badge/MySQL-Database-00758F?style=for-the-badge&logo=mysql&logoColor=white"/>
+</a>
 
-## 🚀 Fitur Utama & Keunggulan Teknis
+<br/><br/>
 
-### 🛠️ Administrator Intelligence (Backend)
-- **Smart Event Engine:** CRUD event lengkap dengan sistem status (*Draft, Published, Closed*).
-- **Dynamic Pricing Logic:** Sistem otomatis mendeteksi tiket **GRATIS** atau **BERBAYAR** dengan format mata uang Rupiah otomatis.
-- **One-Click Validation:** Admin dapat menyetujui atau menolak pendaftaran langsung dari tabel utama dengan konfirmasi instan.
-- **Data Analytics:** Dashboard dengan widget statistik pendaftar dan ketersediaan kuota secara real-time.
+<strong>🏛️ EventKampus Pro</strong>  
+<p><i>Enterprise-Grade Digital Event Management System for Modern Campus</i></p>
 
-### 🎓 Mahasiswa Center (User Dashboard)
-- **Identity Security:** Registrasi ketat yang mewajibkan data akademik (NIM, Jurusan, Prodi).
-- **E-Ticket Wallet:** Daftar seluruh tiket yang diikuti lengkap dengan status konfirmasi admin.
-- **Automated PDF Generator:** Mahasiswa dapat mengunduh tiket PDF resmi setelah pendaftaran dikonfirmasi (ACC) oleh admin.
-- **Profile Mastery:** Fitur kustomisasi profil termasuk upload avatar dengan *image editor* bawaan.
-
-### 🌐 Frontend & UX
-- **Responsive Showcase:** Tampilan kartu event modern dengan animasi **AOS (Animate On Scroll)**.
-- **Traffic Controller:** Sistem *Smart Redirect* yang memisahkan jalur login Admin (`/admin`) dan Mahasiswa (`/mahasiswa`) secara cerdas.
-
----
-
-## 🛠️ Tech Stack & Library
-- **Core Framework:** Laravel 11 (PHP 8.2+)
-- **Admin Panel:** Filament V3 (TALL Stack)
-- **PDF Engine:** Barryvdh DomPDF
-- **Security:** Laravel Sanctum & Filament Middleware Protection
-- **Icons:** Heroicons
+</div>
 
 ---
 
-## ⚙️ Arsitektur Sistem (Workflow)
-1. **Event Creation:** Admin membuat event, mengatur lokasi, kuota, dan harga melalui `/admin`.
-2. **Discovery:** Mahasiswa menjelajahi event aktif di Landing Page.
-3. **Registration:** Mahasiswa login dan mendaftar event (Data masuk ke tabel pendaftaran dengan status `Pending`).
-4. **Verification:** Admin meninjau data mahasiswa, lalu melakukan **Approve** (Konfirmasi).
-5. **Finalization:** Status tiket mahasiswa berubah menjadi `Confirmed`, memicu munculnya tombol **Cetak Tiket PDF**.
+## 🌐 Tentang Proyek
+
+**EventKampus Pro** adalah sistem manajemen event kampus berbasis web yang dirancang untuk mengelola **seluruh siklus hidup kegiatan mahasiswa** secara digital dari publikasi event, pendaftaran peserta, validasi admin, hingga penerbitan **E-Ticket PDF otomatis**.
+
+Project ini dibangun dengan pendekatan **clean architecture**, performa tinggi, dan siap dikembangkan ke skala institusi.
 
 ---
 
-## 📦 Panduan Instalasi (Development)
+## 🚀 Fitur Unggulan
 
-### 1. Persiapan
+### 🛡️ Admin Panel (Filament v3)
+- 🎛️ **Smart Event Engine**  
+  Manajemen event lengkap dengan status: `Draft • Published • Closed`
+- 💸 **Dynamic Pricing System**  
+  Otomatis membedakan tiket **Gratis / Berbayar** (Rupiah format)
+- ✅ **One-Click Validation**  
+  Approve / Reject peserta langsung dari tabel
+- 📊 **Realtime Analytics**  
+  Statistik pendaftar & kuota tersisa
+
+---
+
+### 🎓 Mahasiswa Dashboard
+- 🆔 **Academic Identity Security**  
+  Registrasi berbasis NIM, Prodi, dan Jurusan
+- 🎟️ **E-Ticket Wallet**  
+  Riwayat event & status pendaftaran
+- 📄 **Auto PDF Ticket Generator**  
+  Tombol cetak tiket aktif setelah admin ACC
+- 🖼️ **Profile Customization**  
+  Upload avatar + image editor bawaan
+
+---
+
+### 🎨 Frontend & UX
+- ⚡ **Responsive Event Showcase**
+- ✨ **AOS Animation (Animate On Scroll)**
+- 🔀 **Smart Role Redirect**
+  - `/admin` → Admin Panel
+  - `/mahasiswa` → User Dashboard
+
+---
+
+## 🧠 Arsitektur Sistem (Workflow)
+
+```mermaid
+flowchart LR
+A[Admin Buat Event] --> B[Event Published]
+B --> C[Mahasiswa Daftar]
+C --> D[Status Pending]
+D -->|Approve| E[Tiket Confirmed]
+E --> F[Cetak Tiket PDF]
+````
+
+---
+
+## 🧰 Tech Stack
+
+| Layer       | Teknologi                |
+| ----------- | ------------------------ |
+| Backend     | Laravel 11 (PHP 8.2+)    |
+| Admin Panel | Filament v3 (TALL Stack) |
+| Frontend    | Blade + TailwindCSS      |
+| Database    | MySQL                    |
+| PDF Engine  | DomPDF                   |
+| Security    | Sanctum + Middleware     |
+| Icons       | Heroicons                |
+
+---
+
+## 📦 Instalasi (Development)
+
+### 1️⃣ Clone Repository
+
 ```bash
-git clone [https://github.com/username/event-kampus.git](https://github.com/username/event-kampus.git)
+git clone https://github.com/username/event-kampus.git
 cd event-kampus
-composer install
-npm install && npm run build
-
 ```
 
-### 2. Konfigurasi Environment
+### 2️⃣ Install Dependency
+
+```bash
+composer install
+npm install && npm run build
+```
+
+### 3️⃣ Konfigurasi Environment
 
 ```bash
 cp .env.example .env
 php artisan key:generate
-
 ```
 
-*Sesuaikan database di `.env` (DB_DATABASE, DB_USERNAME, DB_PASSWORD).*
+> Atur database di file `.env`
 
-### 3. Migrasi & Storage Link
+### 4️⃣ Migrasi & Storage
 
 ```bash
 php artisan migrate --seed
 php artisan storage:link
-
 ```
 
-### 4. Menjalankan Aplikasi
+### 5️⃣ Jalankan Server
 
 ```bash
 php artisan serve
-
 ```
 
 ---
 
-## 🔑 Akses Default (Testing)
+## 🔑 Akun Testing
 
-| Role | Email | Password |
-| --- | --- | --- |
-| **Admin** | `admin@gmail.com` | `password` |
-| **Mahasiswa** | *Lakukan registrasi di web* | - |
+| Role      | Email                                     | Password |
+| --------- | ----------------------------------------- | -------- |
+| Admin     | [admin@gmail.com](mailto:admin@gmail.com) | password |
+| Mahasiswa | Registrasi via Web                        | -        |
 
----
-
-## 🗺️ Roadmap Masa Depan
-
-* [ ] Integrasi **Payment Gateway (Midtrans)** untuk tiket berbayar.
-* [ ] Sistem **Absensi QR Code** saat hari-H acara.
-* [ ] Export laporan pendaftar ke format Excel.
-* [ ] Notifikasi otomatis via WhatsApp API.
+🔗 Admin: [http://event-kampus.test/admin](http://event-kampus.test/admin)
+🔗 Mahasiswa: [http://127.0.0.1:8000/mahasiswa](http://127.0.0.1:8000/mahasiswa)
 
 ---
 
-## 🤝 Kontribusi & Hak Cipta
+## 🗺️ Roadmap
 
-Dikembangkan dengan penuh dedikasi oleh:
+* [ ] Payment Gateway (Midtrans)
+* [ ] QR Code Attendance
+* [ ] Export Excel & PDF Report
+* [ ] WhatsApp Notification API
+* [ ] Role Panitia & Scanner
 
-* **[Gempur Budi]** - *Lead System Architect & Backend*
+---
+
+## 👨‍💻 Author
+
+**Gempur Budi Anarki**
+🧠 Lead System Architect & Backend Engineer
+
+> “Build systems that scale, not projects that die.”
+
+---
+
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png" width="100%"/>
+
+⭐ Jangan lupa kasih star kalau project ini kepake
+🚀 Built for campus. Ready for the future.
+
+</div>

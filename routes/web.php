@@ -1,10 +1,11 @@
 <?php
 
-use App\Http\Controllers\TicketController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Event; 
-use App\Http\Controllers\FrontEventController;
+use App\Models\Event;
+// Pastikan Controller ini nanti dibuat ya (FrontEventController)
+use App\Http\Controllers\FrontEventController; 
+use App\Http\Controllers\TicketController;
 use App\Http\Controllers\ReportController;
 
 /*
@@ -13,39 +14,36 @@ use App\Http\Controllers\ReportController;
 |--------------------------------------------------------------------------
 */
 
-// 1. HALAMAN DEPAN (Landing Page)
+// --- 1. HALAMAN DEPAN (LANDING PAGE) ---
 Route::get('/', function () {
-    // Kalau user iseng buka halaman depan padahal udah login
-    if (Auth::check()) {
-        return redirect()->route('dashboard');
-    }
-
-    // Ambil 6 event terbaru
-    $events = Event::latest()->take(6)->get();
+    // Ambil event yang statusnya 'published' aja, urutkan dari yang terbaru
+    // Kita ambil 9 biar pas grid-nya (3x3)
+    $events = Event::where('status', 'published')
+        ->latest()
+        ->take(9)
+        ->get();
+    
     return view('welcome', compact('events'));
 })->name('home');
 
 
-// 2. REDIRECT SYSTEM & TRAFFIC POLICE
-// Ini jalur "Pintar" membedakan Admin vs Mahasiswa
-
+// --- 2. TRAFFIC POLICE (Sistem Redirect Pintar) ---
 Route::get('/dashboard', function () {
     $user = Auth::user();
 
-    // A. Cek Apakah Dia Admin?
-    // (Logicnya sama kayak di User.php tadi)
-    if ($user->email === 'admin@gmail.com') {
+    // A. Kalau Admin -> Lempar ke Panel Admin Filament
+    if ($user->email === 'admin@ubbg.ac.id') {
         return redirect('/admin');
     }
 
-    // B. Kalau Bukan Admin, Pasti Mahasiswa
+    // B. Kalau Mahasiswa -> Lempar ke Panel Mahasiswa
     return redirect('/mahasiswa');
 
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 
-// 3. FORCE REDIRECT (Handling Link Bawaan Laravel)
-// Biar user gak nyasar ke login putih polos
+// --- 3. FORCE REDIRECT (Handling Link Bawaan Laravel) ---
+// Biar user gak nyasar ke halaman login default yang putih polos
 Route::get('/login', function () {
     return redirect('/mahasiswa/login');
 })->name('login');
@@ -55,19 +53,23 @@ Route::get('/register', function () {
 })->name('register');
 
 
-// 1. Route Halaman Detail Event (Public)
+// --- 4. PUBLIC EVENT ROUTES ---
+// Halaman Detail Event (Nanti kita buat Controllernya)
 Route::get('/event/{event}', [FrontEventController::class, 'show'])->name('event.show');
 
-// 2. Route Proses Daftar (Harus Login)
+// Proses Daftar Event (Wajib Login)
 Route::post('/event/{event}/register', [FrontEventController::class, 'register'])
-    ->middleware('auth') // Wajib login
+    ->middleware('auth')
     ->name('event.register');
 
-// 4. FITUR DOWNLOAD TIKET (Wajib Login)
+
+// --- 5. FITUR DOWNLOAD & EXPORT ---
+// Download Tiket PDF (Mahasiswa)
 Route::get('/ticket/{registration}/download', [TicketController::class, 'download'])
     ->middleware('auth')
     ->name('ticket.download');
 
-    Route::get('/admin/export-registrations', [ReportController::class, 'export'])
-    ->middleware('auth') // Wajib login
+// Export Laporan Excel (Admin)
+Route::get('/admin/export-registrations', [ReportController::class, 'export'])
+    ->middleware('auth')
     ->name('export.registrations');

@@ -68,18 +68,22 @@
                 </div>
 
                 <div class="flex items-center gap-4">
-                    @auth
-                        <span class="hidden md:block text-gray-400 text-sm font-medium">Hai, <span class="text-white">{{ Auth::user()->name }}</span></span>
-                        <a href="{{ route('dashboard') }}" class="px-5 py-2.5 rounded-full bg-card border border-gray-700 hover:border-primary text-white font-medium transition shadow-lg flex items-center gap-2 group">
-                            <span>Dashboard</span>
-                            <svg class="w-4 h-4 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                        </a>
-                    @else
-                        <a href="{{ route('login') }}" class="text-gray-400 hover:text-white font-medium transition px-2">Masuk</a>
-                        <a href="{{ route('register') }}" class="px-6 py-2.5 rounded-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white font-bold shadow-lg shadow-indigo-500/30 transition transform hover:scale-105">
-                            Daftar Akun
-                        </a>
-                    @endauth
+                    @if (Route::has('login'))
+                        @auth
+                            <span class="hidden md:block text-gray-400 text-sm font-medium">Hai, <span class="text-white">{{ Auth::user()->name }}</span></span>
+                            <a href="{{ url('/dashboard') }}" class="px-5 py-2.5 rounded-full bg-card border border-gray-700 hover:border-primary text-white font-medium transition shadow-lg flex items-center gap-2 group">
+                                <span>Dashboard</span>
+                                <svg class="w-4 h-4 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                            </a>
+                        @else
+                            <a href="{{ route('login') }}" class="text-gray-400 hover:text-white font-medium transition px-2">Masuk</a>
+                            @if (Route::has('register'))
+                                <a href="{{ route('register') }}" class="px-6 py-2.5 rounded-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white font-bold shadow-lg shadow-indigo-500/30 transition transform hover:scale-105">
+                                    Daftar Akun
+                                </a>
+                            @endif
+                        @endauth
+                    @endif
                 </div>
             </div>
         </div>
@@ -131,9 +135,11 @@
                              data-aos="fade-up" data-aos-delay="{{ $index * 100 }}">
                             
                             <div class="relative h-56 overflow-hidden">
-                                <img src="{{ $event->image ? asset('storage/' . $event->image) : 'https://placehold.co/600x400/1e293b/FFF?text=Event+UBBG' }}" 
-                                     alt="{{ $event->name }}" 
-                                     class="event-image w-full h-full object-cover transition duration-700 ease-in-out">
+                                @if($event->image)
+                                    <img src="{{ asset('storage/' . $event->image) }}" alt="{{ $event->title }}" class="event-image w-full h-full object-cover transition duration-700 ease-in-out">
+                                @else
+                                    <img src="https://placehold.co/600x400/1e293b/FFF?text=Event+UBBG" class="event-image w-full h-full object-cover transition duration-700 ease-in-out">
+                                @endif
                                 
                                 <div class="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent opacity-90"></div>
                                 
@@ -161,7 +167,7 @@
 
                             <div class="p-6 flex-1 flex flex-col">
                                 <h3 class="text-xl font-bold text-white mb-3 line-clamp-2 group-hover:text-primary transition duration-300">
-                                    {{ $event->name }}
+                                    {{ $event->title }} 
                                 </h3>
                                 
                                 <div class="flex items-center text-sm text-gray-400 mb-4 gap-4">
@@ -175,14 +181,14 @@
                                     </div>
                                 </div>
 
-                                <p class="text-gray-500 text-sm mb-6 line-clamp-2">
+                                <div class="text-gray-500 text-sm mb-6 line-clamp-2">
                                     {!! strip_tags($event->description) !!}
-                                </p>
+                                </div>
 
                                 <div class="mt-auto pt-4 border-t border-gray-700/50">
                                     <a href="{{ route('event.show', $event->id) }}" class="block w-full py-3 rounded-xl bg-gray-800 hover:bg-primary text-white text-center font-semibold transition duration-300 group-hover:shadow-lg group-hover:shadow-primary/25">
-                                    Lihat Detail
-                                </a>
+                                        Lihat Detail
+                                    </a>
                                 </div>
                             </div>
                         </div>
