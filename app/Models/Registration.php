@@ -9,22 +9,22 @@ class Registration extends Model
 {
     use HasFactory;
 
-    // DAFTARKAN SEMUA KOLOM DI SINI BIAR BISA DISIMPAN
-    protected $fillable = [
-        'user_id',
-        'event_id',
-        'ticket_code',   // <-- Ini yang bikin error tadi
-        'status',
-        'payment_proof', // <-- Ini buat fitur upload bukti bayar nanti
+    // Kita buka semua kolom biar aman diisi (Asal controllernya ketat)
+    protected $guarded = ['id'];
+
+    // Casting tipe data biar enak dipanggil
+    protected $casts = [
+        'registration_date' => 'datetime',
+        'paid_at' => 'datetime',
     ];
 
-    // RELASI KE USER
+    // Relasi ke User
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // RELASI KE EVENT
+    // Relasi ke Event
     public function event()
     {
         return $this->belongsTo(Event::class);
