@@ -14,9 +14,9 @@ class PaymentNotificationController extends Controller
 {
     public function __construct()
     {
-        // Set konfigurasi Midtrans
-        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
-        Config::$isProduction = (bool) env('MIDTRANS_IS_PRODUCTION', false);
+        // PERBAIKAN: Gunakan config() agar aman di production
+        Config::$serverKey = config('services.midtrans.server_key');
+        Config::$isProduction = config('services.midtrans.is_production');
         Config::$isSanitized = true;
         Config::$is3ds = true;
     }
@@ -36,38 +36,36 @@ class PaymentNotificationController extends Controller
             $fraud = $notif->fraud_status;
 
             // 2. Cari Data Registrasi Berdasarkan Ticket Code
-            // Kita lock baris ini biar gak bentrok kalau ada update barengan
+            // Gunakan lockForUpdate untuk mencegah race condition saat update status
             $registration = Registration::where('ticket_code', $orderId)->lockForUpdate()->first();
 
             if (!$registration) {
+                // Return 404 agar Midtrans tahu data tidak ada (tapi biasanya kita return 200 biar midtrans gak retry terus)
                 return response()->json(['message' => 'Registration not found'], 404);
             }
 
-            // Kalau status sudah 'confirmed' atau 'canceled', jangan diapa-apain lagi (Idempotency)
+            // IDEMPOTENCY CHECK:
+            // Kalau status sudah final ('confirmed' atau 'canceled'), stop proses.
+            // Ini mencegah double-update jika Midtrans kirim webhook berkali-kali.
             if (in_array($registration->status, ['confirmed', 'canceled', 'attended'])) {
                 return response()->json(['message' => 'Transaction already processed'], 200);
             }
 
-            // 3. Logic Update Status Berdasarkan Respon Midtrans
+            // 3. Logic Update Status
             DB::transaction(function () use ($transaction, $type, $fraud, $registration, $notif) {
                 
-                // Status Transaksi Midtrans:
-                // capture, settlement = LUNAS
-                // pending = MENUNGGU
-                // deny, expire, cancel = GAGAL
-
                 if ($transaction == 'capture') {
-                    // Untuk pembayaran kartu kredit
+                    // Pembayaran Kartu Kredit
                     if ($type == 'credit_card') {
                         if ($fraud == 'challenge') {
                             $registration->update([
                                 'payment_status' => 'challenge',
-                                'status' => 'pending' // Masih ragu-ragu
+                                'status' => 'pending'
                             ]);
                         } else {
                             $registration->update([
                                 'payment_status' => 'paid',
-                                'status' => 'confirmed', // LUNAS!
+                                'status' => 'confirmed', // LUNAS & TIKET AKTIF
                                 'paid_at' => now(),
                                 'midtrans_transaction_id' => $notif->transaction_id,
                                 'payment_method' => $type
@@ -75,31 +73,31 @@ class PaymentNotificationController extends Controller
                         }
                     }
                 } elseif ($transaction == 'settlement') {
-                    // LUNAS (Transfer, Gopay, dll masuk sini)
+                    // LUNAS (Transfer, Gopay, QRIS, dll)
                     $registration->update([
                         'payment_status' => 'paid',
-                        'status' => 'confirmed', // Tiket jadi AKTIF
+                        'status' => 'confirmed', // LUNAS & TIKET AKTIF
                         'paid_at' => now(),
                         'midtrans_transaction_id' => $notif->transaction_id,
                         'payment_method' => $type
                     ]);
 
                 } elseif ($transaction == 'pending') {
-                    // Menunggu pembayaran
+                    // Menunggu Pembayaran
                     $registration->update([
                         'payment_status' => 'pending',
                         'status' => 'pending'
                     ]);
 
                 } elseif ($transaction == 'deny' || $transaction == 'expire' || $transaction == 'cancel') {
-                    // PEMBAYARAN GAGAL / KADALUARSA
+                    // GAGAL / KADALUARSA
                     $registration->update([
                         'payment_status' => 'failed',
-                        'status' => 'canceled' // Tiket hangus
+                        'status' => 'canceled' // TIKET HANGUS
                     ]);
 
                     // PENTING: KEMBALIKAN KUOTA EVENT!
-                    // Karena waktu daftar kuota udah kita potong, kalau gagal harus dibalikin.
+                    // Karena user gagal bayar, kursi kosong lagi.
                     Event::where('id', $registration->event_id)->increment('quota');
                 }
             });
@@ -108,6 +106,7 @@ class PaymentNotificationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Midtrans Error: ' . $e->getMessage());
+            // Return 500 agar Midtrans mencoba kirim ulang nanti (Retry mechanism)
             return response()->json(['message' => 'Error processing notification'], 500);
         }
     }

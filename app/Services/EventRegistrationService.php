@@ -16,9 +16,9 @@ class EventRegistrationService
 {
     public function __construct()
     {
-        // Konfigurasi Midtrans kita pasang di sini biar terpanggil otomatis
-        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
-        Config::$isProduction = (bool) env('MIDTRANS_IS_PRODUCTION', false);
+        // PERBAIKAN: Gunakan config() bukan env() agar aman saat production cache
+        Config::$serverKey = config('services.midtrans.server_key');
+        Config::$isProduction = config('services.midtrans.is_production');
         Config::$isSanitized = true;
         Config::$is3ds = true;
     }
@@ -31,13 +31,15 @@ class EventRegistrationService
         // Mulai Transaksi Database
         return DB::transaction(function () use ($user, $event, $source) {
             
-            // 1. LOCKING & VALIDASI (Sama seperti sebelumnya)
+            // 1. LOCKING & VALIDASI
+            // Kita lock baris event untuk mencegah Race Condition (balapan klik)
             $eventLocked = Event::where('id', $event->id)->lockForUpdate()->first();
 
             if ($eventLocked->quota <= 0) {
                 throw new Exception('Mohon maaf, kuota tiket untuk event ini sudah habis.');
             }
 
+            // Cek apakah user sudah daftar
             $existingRegistration = Registration::where('user_id', $user->id)
                 ->where('event_id', $event->id)
                 ->exists();
@@ -48,28 +50,29 @@ class EventRegistrationService
 
             // 2. TENTUKAN STATUS & HARGA
             $isPaidEvent = $eventLocked->price > 0;
+            
             // Kalau bayar status 'pending', kalau gratis 'confirmed'
             $status = $isPaidEvent ? 'pending' : 'confirmed';
 
-            // 3. GENERATE TIKET CODE
+            // 3. GENERATE TIKET CODE (Unik)
             do {
                 $randomStr = strtoupper(Str::random(6));
                 $ticketCode = sprintf('EVT-%s-%s', now()->format('Ymd'), $randomStr);
             } while (Registration::where('ticket_code', $ticketCode)->exists());
 
-            // 4. SIMPAN REGISTRASI (Simpan dulu biar punya ID & Code)
+            // 4. SIMPAN REGISTRASI
             $registration = Registration::create([
                 'user_id' => $user->id,
                 'event_id' => $event->id,
                 'ticket_code' => $ticketCode,
                 'status' => $status,
-                'payment_status' => $isPaidEvent ? 'pending' : 'free', // Set status pembayaran awal
+                'payment_status' => $isPaidEvent ? 'pending' : 'free',
                 'payment_method' => null,
             ]);
 
             // 5. LOGIC MIDTRANS (KHUSUS BERBAYAR)
             if ($isPaidEvent) {
-                // Siapkan data untuk dikirim ke Midtrans
+                // Siapkan parameter Midtrans
                 $params = [
                     'transaction_details' => [
                         'order_id' => $ticketCode, // PENTING: Order ID pakai Kode Tiket
@@ -84,14 +87,14 @@ class EventRegistrationService
                             'id' => $event->id,
                             'price' => (int) $eventLocked->price,
                             'quantity' => 1,
-                            'name' => Str::limit($event->title, 50), // Midtrans max 50 char
+                            'name' => Str::limit($event->title, 50), // Midtrans max 50 char untuk nama item
                         ]
                     ],
-                    // Custom expiry (Misal user harus bayar dalam 2 jam)
+                    // Custom expiry (Misal tiket hangus dalam 2 jam jika tidak dibayar)
                     'expiry' => [
                         'start_time' => now()->format('Y-m-d H:i:sO'),
                         'unit' => 'hour',
-                        'duration' => 2, // Tiket hangus dalam 2 jam
+                        'duration' => 2,
                     ],
                 ];
 
@@ -99,20 +102,20 @@ class EventRegistrationService
                     // Minta Snap Token ke Midtrans
                     $snapToken = Snap::getSnapToken($params);
                     
-                    // Update data registrasi dengan token ini
+                    // Simpan token ke database
                     $registration->update([
                         'snap_token' => $snapToken
                     ]);
                     
                 } catch (Exception $e) {
-                    // Kalau gagal connect Midtrans, batalkan semua (Rollback)
+                    // Kalau gagal connect Midtrans, Rollback semua perubahan DB
                     throw new Exception('Gagal memproses pembayaran: ' . $e->getMessage());
                 }
             }
 
-            // 6. KURANGI KUOTA (Booking Seat)
-            // Kuota tetap kita kurangi di awal. Kalau nanti user gak bayar (expire),
-            // Webhook akan mengembalikan kuota ini (Increment).
+            // 6. KURANGI KUOTA
+            // Kuota dikurangi saat checkout ("Booked Seat").
+            // Jika nanti expire/gagal bayar, webhook yang akan mengembalikan kuota ini.
             $eventLocked->decrement('quota');
 
             return $registration;

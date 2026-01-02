@@ -102,9 +102,9 @@ class RegistrationResource extends Resource
                     ->button()
                     ->action(function (Registration $record) {
                         try {
-                            // 1. Setup Konfigurasi Midtrans
-                            \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
-                            \Midtrans\Config::$isProduction = (bool) env('MIDTRANS_IS_PRODUCTION', false);
+                            // 1. Setup Konfigurasi Midtrans (FIX: Pake Config, Jangan Env)
+                            \Midtrans\Config::$serverKey = config('services.midtrans.server_key');
+                            \Midtrans\Config::$isProduction = config('services.midtrans.is_production');
                             \Midtrans\Config::$isSanitized = true;
                             \Midtrans\Config::$is3ds = true;
 
@@ -171,6 +171,17 @@ class RegistrationResource extends Resource
                     ->modalContent(fn (Registration $record) => view('filament.mahasiswa.registrations.qr-modal', ['record' => $record]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Tutup')
+                    ->visible(fn (Registration $record) => in_array($record->status, ['confirmed', 'attended'])),
+
+                // --- ACTION 4: DOWNLOAD PDF (BARU!) ---
+                Action::make('download_pdf')
+                    ->label('Download PDF')
+                    ->icon('heroicon-m-arrow-down-tray')
+                    ->color('primary') // Warna Biru biar beda sama QR
+                    ->button()
+                    // Mengarahkan ke Route yang kita buat tadi
+                    ->url(fn (Registration $record) => route('ticket.download', $record))
+                    ->openUrlInNewTab() // Buka di tab baru (UX Friendly)
                     ->visible(fn (Registration $record) => in_array($record->status, ['confirmed', 'attended'])),
             ])
             ->defaultSort('created_at', 'desc');

@@ -8,6 +8,7 @@ use App\Http\Controllers\FrontEventController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\ReportController;
 
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes (Jalur Utama)
@@ -65,11 +66,13 @@ Route::post('/event/{event}/register', [FrontEventController::class, 'register']
 
 // --- 5. FITUR DOWNLOAD & EXPORT ---
 // Download Tiket PDF (Mahasiswa)
-Route::get('/ticket/{registration}/download', [TicketController::class, 'download'])
-    ->middleware('auth')
-    ->name('ticket.download');
+    Route::middleware(['auth'])->group(function () {
+    Route::get('/tickets/{registration}/download', [TicketController::class, 'downloadTicket'])
+        ->name('ticket.download');
+
 
 // Export Laporan Excel (Admin)
 Route::get('/admin/export-registrations', [ReportController::class, 'export'])
     ->middleware('auth')
     ->name('export.registrations');
+});
