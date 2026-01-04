@@ -5,10 +5,12 @@ namespace App\Filament\Pages;
 use App\Models\Event;
 use App\Models\Registration;
 use Filament\Pages\Page;
-use Filament\Forms\Components\Select;
+use Filament\Notifications\Notification;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Notifications\Notification;
+use Filament\Forms\Form;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Section;
 
 class ScanTiket extends Page implements HasForms
 {
@@ -16,107 +18,146 @@ class ScanTiket extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-qr-code';
     protected static ?string $navigationLabel = 'Scan Tiket Masuk';
-    protected static ?string $title = 'Scanner Pintu Masuk';
+    protected static ?string $title = 'Scanner Tiket Event';
     protected static string $view = 'filament.pages.scan-tiket';
+    protected static ?int $navigationSort = 10;
+    protected static ?string $slug = 'scan-tiket';
 
-    // State untuk form pilih event
-    public $event_id;
-    
-    // State untuk hasil scan
-    public $scannedCode;
-    public $scanResult = null; // 'success', 'error', 'warning'
-    public $scanMessage = '';
-    public $participantData = null;
+    // Property untuk Form Pilihan Event
+    public ?array $data = [];
+    public $eventId = null;
 
-    public function mount()
+    // Property hasil scan
+    public $scannedResult = null;
+
+    public function mount(): void
     {
-        // Otomatis pilih event yang sedang aktif/paling baru (Opsional UX)
-        $latestEvent = Event::latest()->first();
-        if ($latestEvent) {
-            $this->event_id = $latestEvent->id;
-        }
+        // Inisialisasi form
+        $this->form->fill();
     }
 
-    protected function getFormSchema(): array
+    public function form(Form $form): Form
     {
-        return [
-            Select::make('event_id')
-                ->label('Pilih Event yang Sedang Berjalan')
-                ->options(Event::all()->pluck('title', 'id'))
-                ->searchable()
-                ->required()
-                ->reactive() // Biar kalau ganti event, state ikut update
-                ->helperText('Pastikan Anda memilih event yang benar sebelum scan!'),
-        ];
+        return $form
+            ->schema([
+                Section::make('Konfigurasi Scanner')
+                    ->description('Pilih event yang sedang berlangsung sebelum melakukan scanning.')
+                    ->schema([
+                        Select::make('eventId')
+                            ->label('Pilih Event')
+                            ->options(Event::where('status', 'published')->pluck('title', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->placeholder('Cari nama event...')
+                            ->live() // Agar properti $eventId langsung terupdate saat dipilih
+                            ->afterStateUpdated(fn ($state) => $this->eventId = $state),
+                    ])
+            ])
+            ->statePath('data');
     }
 
     /**
-     * Method ini dipanggil via Livewire dari Javascript Scanner
+     * Fungsi Utama: Process Logic Scan
      */
-    public function checkTicket($code)
+    public function processTicket($code)
     {
-        $this->scannedCode = $code;
-        $this->scanResult = null;
-        $this->participantData = null;
+        $this->scannedResult = null;
 
-        // 1. Cek Apakah Event Sudah Dipilih
-        if (!$this->event_id) {
-            $this->scanResult = 'error';
-            $this->scanMessage = 'SILAKAN PILIH EVENT TERLEBIH DAHULU!';
-            
-            Notification::make()->title('Pilih Event Dulu!')->danger()->send();
+        // 0. Validasi: Satpam harus pilih event dulu!
+        if (!$this->eventId) {
+            $this->dispatch('play-sound', status: 'error');
+            Notification::make()
+                ->title('Pilih Event Dulu!')
+                ->body('Silakan pilih event pada menu dropdown di atas sebelum scan.')
+                ->danger()
+                ->send();
             return;
         }
 
-        // 2. Cari Tiket di Database
-        $registration = Registration::where('ticket_code', $code)->first();
+        // 1. Cari Data Registrasi
+        $registration = Registration::with(['user', 'event'])
+            ->where('ticket_code', $code)
+            ->first();
 
-        // 3. Validasi Tiket Tidak Ditemukan
+        // --- VALIDASI START ---
+
+        // A. Tiket Tidak Ditemukan
         if (!$registration) {
-            $this->scanResult = 'error';
-            $this->scanMessage = 'TIKET TIDAK DITEMUKAN / TIDAK VALID!';
-            
-            // Play sound error (opsional di JS nanti)
+            $this->dispatch('play-sound', status: 'error');
+            Notification::make()->title('Tiket Tidak Valid')->danger()->send();
             return;
         }
 
-        // 4. Validasi Event Scope (Anti Jebol)
-        if ($registration->event_id != $this->event_id) {
-            $this->scanResult = 'error';
-            $realEventName = $registration->event->title ?? 'Event Lain';
-            $this->scanMessage = "SALAH ACARA! Tiket ini untuk: {$realEventName}";
-            
+        // B. SALAH EVENT (Logic Baru)
+        // Kalau event ID di tiket beda sama event ID yang dipilih di dropdown
+        if ($registration->event_id != $this->eventId) {
+            $this->dispatch('play-sound', status: 'error');
+            $this->scannedResult = [
+                'status' => 'error',
+                'title'  => 'SALAH EVENT!',
+                'desc'   => "Tiket ini untuk event: <b>{$registration->event->title}</b>. Bukan untuk event yang sedang dipilih.",
+            ];
+            Notification::make()->title('Salah Event')->danger()->send();
             return;
         }
 
-        // 5. Validasi Status Pembayaran
-        if ($registration->status != 'confirmed') {
-            $this->scanResult = 'warning';
-            $this->scanMessage = "TIKET BELUM LUNAS / PENDING. Status: {$registration->status}";
+        // C. Belum Lunas
+        if ($registration->status === 'pending' || ($registration->payment_status !== 'paid' && $registration->payment_status !== 'free')) {
+            $this->dispatch('play-sound', status: 'error');
+            $this->scannedResult = [
+                'status' => 'error',
+                'title'  => 'BELUM LUNAS',
+                'desc'   => "Peserta a.n <b>{$registration->user->name}</b> belum menyelesaikan pembayaran.",
+            ];
+            Notification::make()->title('Belum Lunas')->warning()->send();
             return;
         }
 
-        // 6. Cek Apakah Sudah Check-in Sebelumnya (Opsional, biar gak masuk 2x)
-        /* // Jika mau fitur sekali masuk, uncomment ini:
-        if ($registration->has_checked_in) {
-             $this->scanResult = 'warning';
-             $this->scanMessage = 'TIKET SUDAH DIPAKAI MASUK JAM ' . $registration->check_in_time;
-             return;
+        // D. Tiket Batal
+        if ($registration->status === 'canceled') {
+            $this->dispatch('play-sound', status: 'error');
+            $this->scannedResult = [
+                'status' => 'error',
+                'title'  => 'TIKET HANGUS',
+                'desc'   => "Tiket ini sudah dibatalkan oleh sistem.",
+            ];
+            Notification::make()->title('Tiket Batal')->danger()->send();
+            return;
         }
-        */
 
-        // 7. SUKSES!
-        $this->scanResult = 'success';
-        $this->scanMessage = 'TIKET VALID. SILAKAN MASUK.';
-        $this->participantData = [
-            'name' => $registration->user->name ?? 'Guest',
-            'email' => $registration->user->email ?? '-',
-            'type' => $registration->payment_status == 'paid' ? 'Peserta Umum' : 'Undangan/Free',
+        // E. Sudah Masuk (Double Check-in)
+        if ($registration->status === 'attended') {
+            $this->dispatch('play-sound', status: 'warning'); // Suara Warning/Error
+            $this->scannedResult = [
+                'status' => 'warning',
+                'title'  => 'SUDAH CHECK-IN',
+                'desc'   => "Tiket ini sudah digunakan masuk sebelumnya pada: " . $registration->updated_at->format('H:i d/m/Y'),
+                'data'   => $registration
+            ];
+            Notification::make()->title('Sudah Masuk')->body('Tiket sudah digunakan.')->danger()->send();
+            return;
+        }
+
+        // --- VALIDASI PASS (Sukses) ---
+
+        // 2. Update Status
+        $registration->update(['status' => 'attended']);
+
+        // 3. Feedback Sukses
+        $this->dispatch('play-sound', status: 'success');
+        
+        $this->scannedResult = [
+            'status' => 'success',
+            'title'  => 'CHECK-IN BERHASIL',
+            'desc'   => "Selamat Datang, <b>{$registration->user->name}</b>!",
+            'data'   => $registration
         ];
 
-        // Tandai Check-in di DB (Opsional)
-        // $registration->update(['has_checked_in' => true, 'check_in_time' => now()]);
-        
-        Notification::make()->title('Check-in Berhasil')->success()->send();
+        Notification::make()
+            ->title('Berhasil')
+            ->body("Check-in sukses: {$registration->user->name}")
+            ->success()
+            ->send();
     }
 }
